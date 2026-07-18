@@ -25,6 +25,7 @@ export default function Contact() {
   const [form, setForm] = useState(initialForm);
   const [status, setStatus] = useState({ type: 'idle', message: '' });
 
+  const endpoint = import.meta.env.VITE_APPOINTMENT_SCRIPT_URL;
   const selectedCountry = countries.find((country) => country.code === form.country) ?? countries[0];
 
   function updateField(event) {
@@ -33,7 +34,7 @@ export default function Contact() {
     setStatus({ type: 'idle', message: '' });
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const mobile = form.mobile.replace(/\D/g, '');
@@ -46,11 +47,41 @@ export default function Contact() {
       return;
     }
 
-    setForm(initialForm);
-    setStatus({
-      type: 'success',
-      message: 'Message validated successfully. Connect this form to email or Google Sheets to store enquiries.',
-    });
+    setStatus({ type: 'loading', message: 'Sending your message...' });
+
+    const contactMessage = {
+      type: 'contact',
+      name: form.name,
+      email: form.email,
+      country: selectedCountry.label,
+      dialCode: selectedCountry.dialCode,
+      mobile,
+      message: form.message,
+      status: 'NEW',
+      source: 'TechVedhaBees Website',
+      submittedAt: new Date().toISOString(),
+    };
+
+    try {
+      if (endpoint) {
+        await fetch(endpoint, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(contactMessage),
+        });
+      }
+
+      setForm(initialForm);
+      setStatus({
+        type: 'success',
+        message: endpoint
+          ? 'Thank you for reaching out. Our team will get in touch with you soon.'
+          : 'Message validated locally. Add a Google Apps Script URL to save it to Sheets.',
+      });
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Unable to send message. Please try again.' });
+    }
   }
 
   return (
@@ -154,9 +185,10 @@ export default function Contact() {
               ) : null}
               <button
                 type="submit"
-                className="inline-flex min-h-[3.25rem] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-honey to-amberGlow px-6 text-sm font-extrabold text-ink shadow-glow transition hover:-translate-y-0.5"
+                disabled={status.type === 'loading'}
+                className="inline-flex min-h-[3.25rem] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-honey to-amberGlow px-6 text-sm font-extrabold text-ink shadow-glow transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                Send Message
+                {status.type === 'loading' ? 'Sending...' : 'Send Message'}
                 <Send size={18} />
               </button>
             </div>

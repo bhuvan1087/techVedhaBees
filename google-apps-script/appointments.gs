@@ -1,6 +1,7 @@
-const SHEET_NAME = 'Appointments';
+const APPOINTMENTS_SHEET_NAME = 'Appointments';
+const CONTACT_MESSAGES_SHEET_NAME = 'Contact Messages';
 
-const HEADERS = [
+const APPOINTMENT_HEADERS = [
   'Appointment ID',
   'Submitted At',
   'Name',
@@ -14,10 +15,38 @@ const HEADERS = [
   'Source',
 ];
 
+const CONTACT_MESSAGE_HEADERS = [
+  'Message ID',
+  'Submitted At',
+  'Name',
+  'Email',
+  'Country',
+  'Dial Code',
+  'Mobile',
+  'Message',
+  'Status',
+  'Source',
+];
+
 function doPost(event) {
   try {
-    const sheet = getAppointmentsSheet();
     const data = JSON.parse(event.postData.contents || '{}');
+
+    if (data.type === 'contact') {
+      return saveContactMessage(data);
+    }
+
+    return saveAppointment(data);
+  } catch (error) {
+    return jsonResponse({
+      ok: false,
+      error: error.message,
+    });
+  }
+}
+
+function saveAppointment(data) {
+    const sheet = getSheet(APPOINTMENTS_SHEET_NAME, APPOINTMENT_HEADERS);
     const appointmentId = Utilities.getUuid();
 
     sheet.appendRow([
@@ -39,16 +68,34 @@ function doPost(event) {
       appointmentId,
       message: 'Appointment saved',
     });
-  } catch (error) {
-    return jsonResponse({
-      ok: false,
-      error: error.message,
-    });
-  }
+}
+
+function saveContactMessage(data) {
+  const sheet = getSheet(CONTACT_MESSAGES_SHEET_NAME, CONTACT_MESSAGE_HEADERS);
+  const messageId = Utilities.getUuid();
+
+  sheet.appendRow([
+    messageId,
+    data.submittedAt || new Date().toISOString(),
+    data.name || '',
+    data.email || '',
+    data.country || '',
+    data.dialCode || '',
+    data.mobile || '',
+    data.message || '',
+    data.status || 'NEW',
+    data.source || 'Website',
+  ]);
+
+  return jsonResponse({
+    ok: true,
+    messageId,
+    message: 'Contact message saved',
+  });
 }
 
 function doGet() {
-  const sheet = getAppointmentsSheet();
+  const sheet = getSheet(APPOINTMENTS_SHEET_NAME, APPOINTMENT_HEADERS);
   const rows = sheet.getDataRange().getValues();
   const headers = rows.shift();
 
@@ -65,16 +112,16 @@ function doGet() {
   });
 }
 
-function getAppointmentsSheet() {
+function getSheet(sheetName, headers) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = spreadsheet.getSheetByName(SHEET_NAME);
+  let sheet = spreadsheet.getSheetByName(sheetName);
 
   if (!sheet) {
-    sheet = spreadsheet.insertSheet(SHEET_NAME);
+    sheet = spreadsheet.insertSheet(sheetName);
   }
 
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(HEADERS);
+    sheet.appendRow(headers);
   }
 
   return sheet;
